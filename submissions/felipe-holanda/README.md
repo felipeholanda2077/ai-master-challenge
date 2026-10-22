@@ -3,7 +3,7 @@
 ## Sobre mim
 
 - **Nome:** Felipe Holanda
-- **LinkedIn:** _(adicionar)_
+- **LinkedIn:** [linkedin.com/in/felipe-holandadev](https://www.linkedin.com/in/felipe-holandadev/)
 - **Challenge escolhido:** 003 — Lead Scorer (Vendas / RevOps)
 
 ---
