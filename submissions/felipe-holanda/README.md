@@ -118,11 +118,7 @@ que qualquer deal que já fechou na empresa**. O forecast está inflado, e a pri
 
 ### O que eu adicionei que a IA sozinha não faria
 
-- Recusar o score "óbvio" com pesos por vendedor/setor/porte depois de provar que é ruído. Um prompt único entregaria exatamente esse score.
-- Trocar a pergunta para algo que os dados respondem e que o vendedor usa na segunda-feira.
-- Separar o pipeline em filas: deal sem precedente não compete com deal vivo.
-- Validar o código que roda (não um notebook) e publicar o número honesto, mesmo menor.
-- Levar para a Head de RevOps o que ela não perguntou: o forecast inflado e a região Central sem receita no horizonte.
+Escolhi o 003 porque é o desafio em que o entregável é software rodando, e também onde é mais fácil entregar algo que só parece bom: qualquer IA monta um score com pesos para vendedor, setor e porte da conta, e o resultado convence. Minha principal decisão foi sobre como usar a IA. Em vez de colar o brief num chat e aceitar a resposta, trabalhei com um agente (Claude Code) que roda código de verdade, com uma regra: nada entra no score sem teste estatístico e sem backtest. Foi essa regra que derrubou o score óbvio (ele acerta o mesmo que um chute) e mudou a pergunta de "esse deal vai fechar?" para "o que fecha no próximo mês e quanto vale?". O mesmo rigor pegou o erro mais perigoso do processo: a primeira versão dizia que deals com 127 dias tinham 78% de chance de fechar no mês, quando o número real é 5%. O que mais me chamou atenção nos achados não foi o ranking, foi o estado do pipeline: 64% do valor em aberto está em deals mais velhos do que qualquer deal que já fechou, e a região Central não tem receita esperada para o mês seguinte. Se eu fosse a Head de RevOps, é isso que eu ia querer saber antes de qualquer score. Com mais tempo, eu faria duas coisas diferentes: conversaria com dois ou três vendedores antes de desenhar a interface, para confirmar que as filas e as ações batem com a rotina deles, e buscaria dados de atividade do CRM (ligações, reuniões, motivo de perda), que é o que falta para prever *se* um deal fecha, e não só *quando*.
 
 ---
 
