@@ -12,7 +12,6 @@ Tudo aqui é reproduzível: cada número citado sai de um script desta pasta ou 
 | Playwright + Chromium headless | Abrir a interface, tirar os screenshots desta pasta e checar erros de console e scroll horizontal em desktop e mobile |
 | pytest | Travar as regras que não podem quebrar (sem vazamento de futuro, correção de censura, filas, explicações, backtest > baseline) |
 
-
 ## Arquivos
 
 ```
