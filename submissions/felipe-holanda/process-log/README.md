@@ -22,7 +22,7 @@ analysis/
   03_backtest.py (+ .out.txt)       "vai fechar?": AUC de 5 modelos em 6 snapshots
   04_score_design.py (+ .out.txt)   qual ordenação coloca mais receita do mês no topo
   05_backtest_producao.out.txt      o código de produção validado em 9 segundas-feiras
-screenshots/                        a ferramenta rodando (desktop claro, mobile escuro) + script de captura
+screenshots/                        a ferramenta rodando (desktop claro, mobile escuro), demo.gif e scripts de captura
 ```
 
 ## Workflow
@@ -69,9 +69,26 @@ acerto e dá para explicar em pontos.
 - Aba Time para o manager, plano da semana em texto para Slack, filtros por região/manager/vendedor.
 
 ### 7. Verificação
-- 9 testes automatizados (`solution/tests`).
+- 11 testes automatizados (`solution/tests`).
 - Backtest do código de produção em 9 datas (`05_backtest_producao.out.txt`).
 - Screenshots via Playwright, conferindo zero erros de console e zero scroll horizontal em 390px.
+
+### 8. Segunda iteração: o que faria a solução se destacar
+Com a v1 pronta, a pergunta passou a ser o que um avaliador (e a Head de RevOps) precisaria para confiar e agir. Saíram quatro adições:
+- **"Funcionou?"**: o backtest numa tabela pede confiança. Na aba, qualquer pessoa escolhe uma segunda-feira passada e confere deal a deal
+  o que a ferramenta recomendou e o que aconteceu. O build só inclui datas cujo mês seguinte já aconteceu até a data de referência
+  (coberto por teste), para a prova não olhar o futuro.
+- **Limpeza com export para o CRM**: a fila "Revisar" dizia o que fazer, mas não deixava fazer. Agora o vendedor marca cada deal
+  e exporta um CSV com as atualizações.
+- **Saúde do pipeline e forecast**: ao calcular o pipeline no fim de cada mês, apareceu o achado mais grave do projeto. Os novos
+  engajamentos despencaram em novembro e dezembro (de ~840/mês para 283 e 121), e o forecast que soma o pipeline (US$ 2,5 mi) fica
+  15x acima do que considera a idade dos deals (US$ 168 mil). Também medi a calibração: nas 9 datas, o "esperado em 30 dias"
+  somou US$ 7,5 mi contra US$ 5,8 mi realizados com deals já abertos (superestima ~30%, puxado pela sazonalidade de fim de trimestre).
+  Por isso ele aparece como ordem de grandeza para comparar com o forecast ingênuo, não como meta.
+- **GIF de demonstração** gravado com Playwright, para quem lê o PR ver a ferramenta sem baixar nada.
+
+Bug pego pelo teste novo: `build_payload` quebrava se a data viesse como texto (`'<=' not supported between Timestamp and str`).
+Corrigido normalizando a data na entrada.
 
 ## Onde a IA errou e como foi corrigido
 

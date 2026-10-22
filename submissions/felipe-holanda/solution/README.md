@@ -30,7 +30,7 @@ Para trocar os dados (ex.: export novo do CRM), substitua os CSVs em `data/` (me
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q        # 9 testes: sem vazamento de futuro, correção de censura, filas, explicações, backtest
+python -m pytest -q        # 11 testes: sem vazamento de futuro, correção de censura, filas, explicações, backtest, forecast
 ```
 
 ### Estrutura
@@ -145,6 +145,14 @@ Para o vendedor, isso significa ~50% mais acerto nas ligações da semana.
   e é dona de todos os 500 prospects (US$ 1,07 mi). O gargalo ali é prospect → engage, não priorização.
 - **14 de 35 vendedores não têm nenhum deal vivo**, incluindo 5 que nunca tiveram um deal e 3 que fecharam centenas mas estão com a carteira zerada.
 - **Plano da semana em texto** (botão no topo): top 10 + os 5 maiores deals a confirmar, pronto para colar no Slack ou no e-mail.
+- **Limpeza com saída para o CRM**: na fila "Revisar ou encerrar" o vendedor marca cada deal como "está vivo" ou "encerrar".
+  O progresso fica salvo no navegador e o botão "Exportar CSV para o CRM" gera a lista de atualizações (ID, decisão, ação no CRM).
+- **Saúde do pipeline** (aba Time): deals vivos vs sem precedente e novos engajamentos no fim de cada mês, e três forecasts lado a lado:
+  o ingênuo (pipeline em Engaging × 63%), o que considera a idade dos deals e o esperado para os próximos 30 dias.
+  Hoje o ingênuo é 15x maior que o que considera a idade.
+- **Funcionou?**: escolha uma das 9 segundas-feiras do backtest e veja o top 10 que cada vendedor teria recebido, com o desfecho real
+  de cada deal (ganhou em X dias, ganhou depois, perdeu, continuou aberto) e a comparação com ordenar só por valor.
+  Respeita os filtros: o manager vê como a ferramenta teria se saído com o time dele.
 
 ---
 

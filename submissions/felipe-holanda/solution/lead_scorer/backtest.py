@@ -13,33 +13,55 @@ from .data import load
 from .scoring import HORIZON_DAYS, LANE_FOCUS, LANE_PROSPECT, score_pipeline
 
 TOP_N = 10
+BACKTEST_DATES = pd.date_range("2017-04-03", "2017-11-27", freq="4W-MON")
+
+WON_30D, WON_LATER, LOST, STILL_OPEN = "won30", "won_later", "lost", "open"
 
 
-def run_backtest(deals, start="2017-04-03", end="2017-11-27", freq="4W-MON", top_n=TOP_N):
+def scored_with_outcomes(deals, as_of):
+    """Pipeline engajado em `as_of`, pontuado só com o passado, + o que aconteceu depois."""
+    scored, _ = score_pipeline(deals, as_of)
+    scored = scored[scored["lane"] != LANE_PROSPECT].copy()
+    horizon = as_of + pd.Timedelta(days=HORIZON_DAYS)
+    won = scored["deal_stage"] == "Won"
+    won_soon = won & (scored["close_date"] <= horizon)
+    scored["revenue_30d"] = np.where(won_soon, scored["close_value"], 0.0)
+    scored["outcome"] = np.select(
+        [won_soon, won, scored["deal_stage"] == "Lost"], [WON_30D, WON_LATER, LOST], STILL_OPEN)
+    scored["days_to_close"] = (scored["close_date"] - as_of).dt.days
+    return scored
+
+
+def rankings(scored):
+    # Como na ferramenta: a fila "Foco" vem antes da fila "Revisar ou encerrar"
+    in_focus = (scored["lane"] == LANE_FOCUS).astype(int)
+    return {
+        "Lead Scorer (valor + momento)": in_focus * 1000 + scored["score"] + scored["sales_price"] / 1e6,
+        "Só valor de lista": scored["sales_price"].astype(float),
+        "Aleatório": pd.Series(np.random.default_rng(0).random(len(scored)), index=scored.index),
+    }
+
+
+def top_per_agent(scored, key, top_n=TOP_N):
+    return scored.assign(_k=key).sort_values("_k", ascending=False).groupby("sales_agent").head(top_n)
+
+
+def run_backtest(deals, dates=BACKTEST_DATES, top_n=TOP_N):
     rows = []
-    for as_of in pd.date_range(start, end, freq=freq):
-        scored, _ = score_pipeline(deals, as_of)
-        scored = scored[scored["lane"] != LANE_PROSPECT].copy()
-        horizon = as_of + pd.Timedelta(days=HORIZON_DAYS)
-        won_soon = (scored["deal_stage"] == "Won") & (scored["close_date"] <= horizon)
-        scored["revenue_30d"] = np.where(won_soon, scored["close_value"], 0.0)
+    for as_of in dates:
+        scored = scored_with_outcomes(deals, as_of)
         total = scored["revenue_30d"].sum()
         if total == 0:
             continue
-        # Como na ferramenta: a fila "Foco" vem antes da fila "Revisar ou encerrar"
-        in_focus = (scored["lane"] == LANE_FOCUS).astype(int)
-        rankings = {
-            "Lead Scorer (valor + momento)": in_focus * 1000 + scored["score"] + scored["sales_price"] / 1e6,
-            "Só valor de lista": scored["sales_price"].astype(float),
-            "Aleatório": pd.Series(np.random.default_rng(0).random(len(scored)), index=scored.index),
-        }
-        for name, key in rankings.items():
-            top = scored.assign(_k=key).sort_values("_k", ascending=False).groupby("sales_agent").head(top_n)
+        for name, key in rankings(scored).items():
+            top = top_per_agent(scored, key, top_n)
             rows.append({
                 "as_of": as_of.date().isoformat(),
                 "ranking": name,
                 "revenue_captured": top["revenue_30d"].sum() / total,
                 "hit_rate": float((top["revenue_30d"] > 0).mean()),
+                "revenue_top": float(top["revenue_30d"].sum()),
+                "revenue_total": float(total),
             })
     return pd.DataFrame(rows)
 

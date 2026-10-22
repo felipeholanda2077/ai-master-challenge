@@ -20,11 +20,24 @@
     { name: "Início", cls: "inicio" },
   ];
   const STORAGE_KEY = "lead-scorer-filters-v1";
+  const DECISIONS_KEY = "lead-scorer-review-decisions-v1";
+  const OUTCOMES = {
+    won30: { cls: "janela", label: (r) => `Ganhou em ${r.days}d · ${usd(r.closeValue)}` },
+    won_later: { cls: "aquecendo", label: (r) => `Ganhou depois (${r.days}d)` },
+    lost: { cls: "ultima", label: () => "Perdeu" },
+    open: { cls: "neutro", label: () => "Continuou aberto" },
+  };
+  const TT_FIELDS = ["id", "agent", "product", "account", "price", "age", "score", "phase", "outcome", "days", "closeValue"];
+  const TT = (DATA.timeTravel || []).map((snap) => Object.assign({}, snap, {
+    rows: snap.rows.map((r) => Object.fromEntries(TT_FIELDS.map((k, i) => [k, r[i]]))),
+  }));
+  const AGENT_INFO = Object.fromEntries(DATA.agents.map((a) => [a.agent, a]));
 
   const state = Object.assign(
     { tab: "foco", region: ALL, manager: ALL, agent: ALL, search: "", phase: ALL, teamSort: "expected30d" },
     readStored(),
-    { limits: { foco: PAGE, revisar: PAGE, prospectar: PAGE }, open: null }
+    { limits: { foco: PAGE, revisar: PAGE, prospectar: PAGE, prova: PAGE }, open: null,
+      decisions: readJson(DECISIONS_KEY), ttDate: TT.length ? TT[TT.length - 1].asOf : null }
   );
 
   // ---------- utilidades ----------
@@ -37,8 +50,12 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const phaseCls = (name) => (PHASES.find((p) => p.name === name) || { cls: "neutro" }).cls;
 
-  function readStored() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch (e) { return {}; }
+  function readJson(key) {
+    try { return JSON.parse(localStorage.getItem(key)) || {}; } catch (e) { return {}; }
+  }
+  function readStored() { return readJson(STORAGE_KEY); }
+  function storeDecisions() {
+    try { localStorage.setItem(DECISIONS_KEY, JSON.stringify(state.decisions)); } catch (e) { /* segue só na sessão */ }
   }
   function store() {
     try {
@@ -123,7 +140,7 @@
     const showAgent = !state.agent;
     const vw = Math.max(0, d.valuePts), tw = Math.max(0, d.timingPts);
     return `
-    <article class="deal" data-id="${esc(d.id)}">
+    <article class="deal${state.decisions[d.id] ? " decided-" + state.decisions[d.id] : ""}" data-id="${esc(d.id)}">
       <button type="button" aria-expanded="${isOpen}">
         <div class="score" title="${Math.round(vw)} pts de valor + ${Math.round(tw)} pts de momento">
           <div class="num">${d.score}</div>
@@ -139,6 +156,7 @@
           <span class="pill ${phaseCls(d.phase)}">${esc(d.phase)}</span>
         </div>
       </button>
+      ${d.lane === "revisar" ? decisionBar(d) : ""}
       ${isOpen ? dealDetail(d) : ""}
     </article>`;
   }
@@ -196,10 +214,25 @@
         `<button class="chip" data-phase="${esc(p.name)}" aria-pressed="${state.phase === p.name}">${esc(p.name)} (${counts[p.name]})</button>`).join("");
   }
 
+  function decisionBar(d) {
+    const cur = state.decisions[d.id];
+    const btn = (val, label) =>
+      `<button type="button" class="chip" data-decide="${val}" data-deal="${esc(d.id)}" aria-pressed="${cur === val}">${label}</button>`;
+    return `<div class="decide"><span>Depois de confirmar com o cliente:</span>
+      ${btn("vivo", "Está vivo: atualizar data")}${btn("encerrar", "Encerrar como Lost")}</div>`;
+  }
+
   function renderReviewCallout(deals) {
     const value = deals.reduce((s, d) => s + d.price, 0);
     const oldest = deals.reduce((m, d) => Math.max(m, d.age || 0), 0);
-    $("#review-callout").innerHTML = `
+    const decided = deals.filter((d) => state.decisions[d.id]);
+    const alive = decided.filter((d) => state.decisions[d.id] === "vivo").length;
+    const progress = `<div class="progress">
+      <div class="track"><span style="width:${deals.length ? (decided.length / deals.length) * 100 : 0}%"></span></div>
+      <span><b>${decided.length.toLocaleString("pt-BR")} de ${deals.length.toLocaleString("pt-BR")}</b> revisados · ${alive} vivos · ${decided.length - alive} para encerrar</span>
+      <button class="btn" type="button" data-export="1"${decided.length ? "" : " disabled"}>Exportar CSV para o CRM</button>
+    </div>`;
+    $("#review-callout").innerHTML = progress + `
       <strong>${deals.length.toLocaleString("pt-BR")} deals (${usdK(value)}) estão em Engaging há mais de ${META.maxCycle} dias.</strong>
       Nenhum deal da história da empresa levou mais de ${META.maxCycle} dias entre o engajamento e o fechamento${oldest ? ` (o mais antigo daqui está há ${oldest} dias)` : ""}.
       Eles não competem com o foco da semana: a ação é <b>uma ligação curta para confirmar se o deal ainda existe</b>.
@@ -350,6 +383,100 @@
     return lines.join("\n");
   }
 
+  // ---------- limpeza do pipeline: export para o CRM ----------
+  function exportDecisions() {
+    const byId = Object.fromEntries(DATA.deals.map((d) => [d.id, d]));
+    const header = ["opportunity_id", "sales_agent", "product", "account", "days_in_engaging", "decision", "crm_action"];
+    const lines = Object.entries(state.decisions).filter(([id]) => byId[id]).map(([id, dec]) => {
+      const d = byId[id];
+      const action = dec === "vivo" ? "Atualizar engage_date / próximo passo" : "Mover para Lost";
+      return [id, d.agent, d.product, d.account || "", d.age, dec, action];
+    });
+    const csv = [header, ...lines].map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    a.download = `limpeza-pipeline-${META.asOf}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    toast(`${lines.length} decisões exportadas.`);
+  }
+
+  // ---------- saúde do pipeline (visão RevOps) ----------
+  function renderHealth() {
+    const H = DATA.health || [];
+    if (!H.length) { $("#health").innerHTML = ""; return; }
+    const W = 760, Ht = 220, pad = { l: 44, r: 44, t: 16, b: 28 };
+    const w = W - pad.l - pad.r, h = Ht - pad.t - pad.b;
+    const maxDeals = Math.max(...H.map((m) => m.live + m.review));
+    const maxNew = Math.max(...H.map((m) => m.newEngaged));
+    const bw = w / H.length;
+    const y = (v) => pad.t + h - (v / maxDeals) * h;
+    const yn = (v) => pad.t + h - (v / maxNew) * h;
+    const month = (iso) => ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][+iso.slice(5, 7) - 1];
+    const bars = H.map((m, i) => {
+      const x = pad.l + i * bw + bw * 0.18, bwi = bw * 0.64;
+      return `<rect x="${x}" y="${y(m.live)}" width="${bwi}" height="${y(0) - y(m.live)}" fill="var(--ok)"><title>${m.live} deals vivos</title></rect>
+        <rect x="${x}" y="${y(m.live + m.review)}" width="${bwi}" height="${y(m.live) - y(m.live + m.review)}" fill="var(--warn)" opacity=".75"><title>${m.review} sem precedente</title></rect>
+        <text x="${x + bwi / 2}" y="${Ht - 8}" text-anchor="middle">${month(m.date)}</text>`;
+    }).join("");
+    const line = H.map((m, i) => `${i ? "L" : "M"}${pad.l + i * bw + bw / 2},${yn(m.newEngaged)}`).join("");
+    const dots = H.map((m, i) => `<circle cx="${pad.l + i * bw + bw / 2}" cy="${yn(m.newEngaged)}" r="3" fill="var(--value)"><title>${m.newEngaged} novos engajamentos</title></circle>`).join("");
+    const last = H[H.length - 1];
+    const avgWon = H.reduce((s, m) => s + m.wonInMonth, 0) / H.filter((m) => m.wonInMonth).length;
+    const peakNew = H.slice(0, -2).reduce((s, m) => s + m.newEngaged, 0) / Math.max(1, H.length - 2);
+    $("#health").innerHTML = `
+      <h3 class="section-title">Saúde do pipeline · empresa toda, fim de cada mês</h3>
+      <div class="chart"><svg viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Deals vivos, sem precedente e novos engajamentos por mês">
+        <text x="${pad.l - 6}" y="${pad.t + 4}" text-anchor="end">${maxDeals.toLocaleString("pt-BR")}</text>
+        <text x="${pad.l - 6}" y="${y(0)}" text-anchor="end">0</text>
+        <text x="${W - pad.r + 6}" y="${pad.t + 4}">${maxNew}</text>
+        ${bars}<path d="${line}" fill="none" stroke="var(--value)" stroke-width="2"></path>${dots}
+      </svg>
+      <div class="legend"><span><i style="background:var(--ok)"></i>deals vivos</span><span><i style="background:var(--warn)"></i>sem precedente (&gt; ${META.maxCycle}d)</span><span><i style="background:var(--value)"></i>novos engajamentos no mês (eixo da direita)</span></div></div>
+      <div class="forecast">
+        <div class="kpi"><div class="label">Forecast ingênuo</div><div class="value">${usdK(last.naiveForecast)}</div>
+          <div class="note">todo o pipeline em Engaging × win rate histórico (${pct(META.baseWinRate)})</div></div>
+        <div class="kpi"><div class="label">Forecast pela idade do deal</div><div class="value">${usdK(last.ageAwareForecast)}</div>
+          <div class="note">só deals vivos × chance de ganhar na idade em que estão</div></div>
+        <div class="kpi"><div class="label">Esperado nos próximos ${META.horizonDays} dias</div><div class="value">${usdK(last.expected30d)}</div>
+          <div class="note">vs ${usdK(avgWon)} ganhos por mês, em média, em 2017</div></div>
+      </div>
+      <p class="hint">Novos engajamentos caíram de ~${Math.round(peakNew)} por mês para ${H[H.length - 2].newEngaged} em ${month(H[H.length - 2].date)}
+      e ${last.newEngaged} em ${month(last.date)}, enquanto a leva de julho passou dos ${META.maxCycle} dias. O forecast que soma todo o pipeline
+      não enxerga isso: ele é ${Math.round(last.naiveForecast / Math.max(1, last.ageAwareForecast))}x maior que o forecast que considera a idade dos deals.</p>`;
+  }
+
+  // ---------- "Funcionou?": volta no tempo ----------
+  function renderTimeTravel() {
+    if (!TT.length) { $("#tt-list").innerHTML = '<div class="empty">Sem backtest nos dados (rode o build sem --skip-backtest).</div>'; return; }
+    const snap = TT.find((s) => s.asOf === state.ttDate) || TT[TT.length - 1];
+    $("#tt-dates").innerHTML = TT.map((s) =>
+      `<button class="chip" data-tt="${s.asOf}" aria-pressed="${s.asOf === snap.asOf}">${brDate(s.asOf)}</button>`).join("");
+    const rows = snap.rows.filter((r) => matchesPeople(Object.assign({ agent: r.agent }, AGENT_INFO[r.agent] && {
+      manager: AGENT_INFO[r.agent].manager, region: AGENT_INFO[r.agent].region })) && matchesSearch(r))
+      .sort((a, b) => b.score - a.score || b.price - a.price);
+    const won = rows.filter((r) => r.outcome === "won30");
+    const wonValue = won.reduce((s, r) => s + r.closeValue, 0);
+    const cmp = snap.compare;
+    const card = (name, label) => cmp[name] ? `<div class="kpi${name.startsWith("Lead") ? " best" : ""}"><div class="label">${label}</div>
+      <div class="value">${pct(cmp[name].captured)}</div><div class="note">da receita do mês no top 10 · ${usdK(cmp[name].revenue)}</div></div>` : "";
+    const filtered = state.region || state.manager || state.agent || state.search;
+    $("#tt-summary").innerHTML = `
+      <div class="forecast">${card("Lead Scorer (valor + momento)", "Ordenado pelo Lead Scorer")}${card("Só valor de lista", "Ordenado só por valor")}${card("Aleatório", "Ordem aleatória")}</div>
+      <p class="hint">Em ${brDate(snap.asOf)} o time inteiro fechou ${usdK(snap.revenueTotal)} nos ${META.horizonDays} dias seguintes com deals que já estavam abertos.
+      ${filtered ? "Com os filtros atuais" : "Somando todos os vendedores"}: <b>${won.length} de ${rows.length}</b> deals do top 10 fecharam ganhos no mês, somando <b>${usdK(wonValue)}</b>.</p>`;
+    const limit = state.limits.prova;
+    $("#tt-list").innerHTML = rows.length ? rows.slice(0, limit).map((r) => {
+      const o = OUTCOMES[r.outcome];
+      return `<article class="deal tt"><div class="tt-row">
+        <div class="score"><div class="num">${r.score}</div></div>
+        <div><div class="main-line">${esc(r.product)} · ${r.account ? esc(r.account) : '<span class="missing">conta não informada</span>'}</div>
+          <div class="sub-line">${esc(r.agent)} · ${r.age} dias em ${brDate(snap.asOf)} · ${esc(r.phase)} · ${esc(r.id)}</div></div>
+        <div class="right"><span class="price">${usd(r.price)}</span><span class="pill ${o.cls}">${esc(o.label(r))}</span></div>
+      </div></article>`;
+    }).join("") + (rows.length > limit ? `<button class="btn more" data-more="prova">Mostrar mais (${rows.length - limit} restantes)</button>` : "")
+      : '<div class="empty">Nenhum deal desse filtro no top 10 nessa data.</div>';
+  }
+
   // ---------- render + eventos ----------
   function render() {
     renderFilters();
@@ -365,12 +492,13 @@
     });
     document.querySelectorAll(".panel").forEach((p) => { p.hidden = p.id !== "panel-" + state.tab; });
     if (["foco", "revisar", "prospectar"].includes(state.tab)) renderList(state.tab);
-    if (state.tab === "time") renderTeam();
+    if (state.tab === "time") { renderHealth(); renderTeam(); }
+    if (state.tab === "prova") renderTimeTravel();
     if (state.tab === "metodo") renderMethod();
     store();
   }
 
-  function resetPaging() { state.limits = { foco: PAGE, revisar: PAGE, prospectar: PAGE }; state.open = null; }
+  function resetPaging() { state.limits = { foco: PAGE, revisar: PAGE, prospectar: PAGE, prova: PAGE }; state.open = null; }
 
   function bind() {
     $("#asof").textContent = `Pipeline em ${brDate(META.asOf)} · ${DATA.deals.length.toLocaleString("pt-BR")} oportunidades abertas · ${DATA.agents.length} vendedores`;
@@ -396,6 +524,15 @@
     document.querySelector("main").addEventListener("click", (e) => {
       const more = e.target.closest("[data-more]");
       if (more) { state.limits[more.dataset.more] += PAGE; render(); return; }
+      const decide = e.target.closest("[data-decide]");
+      if (decide) {
+        const id = decide.dataset.deal, val = decide.dataset.decide;
+        if (state.decisions[id] === val) delete state.decisions[id]; else state.decisions[id] = val;
+        storeDecisions(); render(); return;
+      }
+      if (e.target.closest("[data-export]")) { exportDecisions(); return; }
+      const tt = e.target.closest("[data-tt]");
+      if (tt) { state.ttDate = tt.dataset.tt; state.limits.prova = PAGE; render(); return; }
       const chip = e.target.closest("[data-phase]");
       if (chip) { state.phase = chip.dataset.phase; resetPaging(); render(); return; }
       const head = e.target.closest(".deal > button");

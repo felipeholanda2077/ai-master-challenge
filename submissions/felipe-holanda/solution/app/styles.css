@@ -157,6 +157,22 @@ table.team { width: 100%; border-collapse: collapse; font-size: 14px; }
 .chart svg { width: 100%; height: auto; display: block; }
 .chart text { fill: var(--muted); font-size: 11px; }
 
+.decide { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 14px 12px 92px; font-size: 13px; color: var(--muted); }
+.deal.decided-encerrar { opacity: .55; }
+.deal.decided-vivo { border-left: 3px solid var(--ok); }
+.progress { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 10px; }
+.progress .track { flex: 0 0 160px; height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.progress .track span { display: block; height: 100%; background: var(--ok); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.section-title { font-size: 15px; margin: 4px 0 10px; }
+#health { margin-bottom: 16px; }
+.forecast { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 12px 0; }
+.kpi.best { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok) inset; }
+.legend { flex-wrap: wrap; }
+
+.deal.tt .tt-row { display: grid; grid-template-columns: 64px 1fr auto; gap: 14px; align-items: center; padding: 10px 14px; }
+
 .foot { color: var(--muted); font-size: 12px; padding: 0 24px 24px; }
 
 .toast {
@@ -170,5 +186,8 @@ table.team { width: 100%; border-collapse: collapse; font-size: 14px; }
   .deal > button { grid-template-columns: 52px 1fr; }
   .deal .right { grid-column: 2; align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
   .detail { padding-left: 14px; grid-template-columns: 1fr; }
+  .decide { padding-left: 14px; }
+  .deal.tt .tt-row { grid-template-columns: 52px 1fr; }
+  .deal.tt .right { grid-column: 2; align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
   .topbar { flex-wrap: wrap; }
 }

@@ -86,3 +86,22 @@ def test_backtest_beats_value_only(real):
     assert s.loc["Lead Scorer (valor + momento)", "revenue_captured"] > s.loc["Só valor de lista", "revenue_captured"]
     assert s.loc["Lead Scorer (valor + momento)", "hit_rate"] > s.loc["Só valor de lista", "hit_rate"]
     assert HORIZON_DAYS == 30 and np.isfinite(s.values).all()
+
+
+def test_build_payload_has_proof_and_health_without_future(real):
+    from lead_scorer.build import build_payload
+    from lead_scorer.data import load as load_all
+    deals, teams = load_all()
+    payload = build_payload(deals, teams, "2017-09-30")
+    # só segundas-feiras cujo mês seguinte já aconteceu até a data de corte
+    assert all(s["asOf"] <= "2017-08-31" for s in payload["timeTravel"])
+    assert payload["health"][-1]["date"] == "2017-09-30"
+    first = payload["timeTravel"][0]
+    assert set(first["compare"]) == {"Lead Scorer (valor + momento)", "Só valor de lista", "Aleatório"}
+    assert {r[8] for r in first["rows"]} <= {"won30", "won_later", "lost", "open"}
+
+
+def test_naive_forecast_ignores_age_and_overstates(real):
+    from lead_scorer.build import pipeline_health
+    last = pipeline_health(real, reference_date(real))[-1]
+    assert last["naiveForecast"] > 10 * last["ageAwareForecast"]

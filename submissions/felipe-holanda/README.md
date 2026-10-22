@@ -16,7 +16,13 @@ não preveem se um deal fecha** (p-valores de 0,26 a 0,97; um modelo de ML com t
 *quando* um deal fecha. Por isso o score combina **valor (60 pts)** com **momento do ciclo (40 pts)**. Em backtest em 9 segundas-feiras
 passadas, o top 10 de cada vendedor capturou **47% da receita ganha no mês seguinte** (vs 41% ordenando por valor e 18% aleatório),
 com ~50% mais acerto. O achado mais importante para a Head de RevOps: **64% do valor em aberto (US$ 3,2 mi) está em deals mais velhos
-que qualquer deal que já fechou na empresa**. O forecast está inflado, e a primeira ação recomendada é limpar esses deals.
+que qualquer deal que já fechou na empresa**. O forecast que soma o pipeline (US$ 2,5 mi) é 15x maior que o forecast que considera
+a idade dos deals (US$ 168 mil). A primeira ação recomendada é limpar esses deals, e a ferramenta já traz o fluxo para isso.
+
+![Demonstração do Lead Scorer](process-log/screenshots/demo.gif)
+
+**Como ver rodando:** baixe o [ZIP da branch](https://github.com/felipeholanda2077/ai-master-challenge/archive/refs/heads/submission/felipe-holanda.zip),
+descompacte e abra `submissions/felipe-holanda/solution/app/index.html` no navegador. Não precisa instalar nada.
 
 ---
 
@@ -31,6 +37,8 @@ que qualquer deal que já fechou na empresa**. O forecast está inflado, e a pri
 3. **Score simples, explicável e validado.** Uma curva empírica (com correção de censura) + valor em escala log. A mesma função
    roda no backtest e na interface.
 4. **Produto para não-técnico.** Filas com ação clara, frase de "por quê" em cada deal, filtros, visão do manager e plano da semana em texto.
+5. **Provar dentro da ferramenta.** A aba "Funcionou?" deixa qualquer pessoa voltar a uma segunda-feira passada e ver o que teria sido
+   recomendado e o que aconteceu de fato. Não é preciso acreditar no meu backtest: dá para conferir deal a deal.
 
 ### Resultados / Findings
 
@@ -39,12 +47,15 @@ que qualquer deal que já fechou na empresa**. O forecast está inflado, e a pri
 | Aba | O que responde |
 |---|---|
 | Foco da semana | Deals vivos ordenados por score, com fase (Início, Aquecendo, Janela de fechamento, Esfriando, Última janela) e ação |
-| Revisar ou encerrar | 1.291 deals sem precedente, ordenados por valor: "confirme se existe ou encerre" |
+| Revisar ou encerrar | 1.291 deals sem precedente, ordenados por valor. O vendedor marca "está vivo" ou "encerrar" e exporta um CSV para atualizar o CRM |
 | Prospectar | 500 prospects por valor |
-| Time | Receita esperada, deals vivos e pipeline sujo por vendedor, manager e região |
+| Time | Saúde do pipeline mês a mês, forecast ingênuo vs forecast pela idade, e receita esperada e pipeline sujo por vendedor, manager e região |
+| Funcionou? | Escolha uma de 9 segundas-feiras passadas: o top 10 que a ferramenta teria mostrado, com o desfecho real de cada deal |
 | Como o score funciona | A curva, a fórmula, o backtest e o que o score não faz, para o vendedor confiar |
 
 ![Detalhe de um deal](process-log/screenshots/desktop-2-detail.png)
+
+![Funcionou? Voltando a 18/09/2017](process-log/screenshots/desktop-8-prova.png)
 
 **Validação (código de produção, 9 segundas-feiras de abr a nov/2017)**
 
@@ -57,6 +68,10 @@ que qualquer deal que já fechou na empresa**. O forecast está inflado, e a pri
 **Findings sobre o pipeline (31/12/2017)**
 
 - **Pipeline fantasma:** 1.291 de 1.589 deals em Engaging (US$ 3,2 mi, 64% do valor aberto) são mais velhos que o maior ciclo da história (138 dias).
+- **O pipeline novo secou no fim do ano:** a média era ~840 novos engajamentos por mês de março a outubro; foram 283 em novembro e 121 em dezembro.
+  Os deals vivos caíram de 1.951 (fim de outubro) para 298 (fim de dezembro). Para os próximos 30 dias, a receita esperada é US$ 121 mil,
+  contra uma média de US$ 1 mi ganho por mês em 2017.
+- **O forecast ingênuo não enxerga isso:** pipeline em Engaging × win rate histórico dá US$ 2,5 mi; considerando a idade dos deals, US$ 168 mil.
 - **O ciclo tem duas ondas:** metade dos perdidos morre em até 14 dias; os ganhos se concentram entre ~60 e ~100 dias (pico em 85).
   Depois disso, a chance cai toda semana.
 - **Região Central sem receita no horizonte:** 5 deals vivos, US$ 0 esperado em 30 dias, e todos os 500 prospects (US$ 1,07 mi) parados lá.
@@ -66,11 +81,13 @@ que qualquer deal que já fechou na empresa**. O forecast está inflado, e a pri
 ### Recomendações
 
 1. **Esta semana:** cada vendedor trabalha o próprio "Foco da semana" (top 10) e dedica 1 hora à fila "Revisar ou encerrar", começando
-   pelos deals maiores. Meta: zerar os deals sem precedente em 4 semanas, para o forecast passar a refletir o pipeline real.
-2. **Managers da Central:** a conversa não é priorização, é converter os 500 prospects em engajamento. A região não tem receita esperada
+   pelos deals maiores e exportando as decisões para o CRM. Meta: zerar os deals sem precedente em 4 semanas, para o forecast passar a refletir o pipeline real.
+2. **Forecast de janeiro:** usar o forecast pela idade, não o que soma o pipeline. E tratar a queda de novos engajamentos
+   (nov e dez) como prioridade da liderança: com o pipeline de hoje, janeiro fecha muito abaixo da média.
+3. **Managers da Central:** a conversa não é priorização, é converter os 500 prospects em engajamento. A região não tem receita esperada
    para janeiro.
-3. **Regra de CRM:** conta obrigatória ao criar oportunidade (hoje 68% dos abertos estão sem) e alerta automático quando um deal passa de 120 dias.
-4. **Próximo passo de dados:** registrar atividades (ligações, reuniões, e-mails) e motivo de perda. É o que falta para prever *se* um deal
+4. **Regra de CRM:** conta obrigatória ao criar oportunidade (hoje 68% dos abertos estão sem) e alerta automático quando um deal passa de 120 dias.
+5. **Próximo passo de dados:** registrar atividades (ligações, reuniões, e-mails) e motivo de perda. É o que falta para prever *se* um deal
    fecha, não só *quando*. Qualquer novo componente do score só entra se bater o backtest atual.
 
 ### Limitações
@@ -94,7 +111,8 @@ que qualquer deal que já fechou na empresa**. O forecast está inflado, e a pri
 | Claude Code | Agente que rodou toda a análise em Python real, os testes estatísticos, os backtests, o código do scorer, a interface, os testes e a documentação |
 | pandas, scipy, scikit-learn | Exploração, χ², e o gradient boosting usado como "o que um baseline faria" |
 | Playwright + Chromium | Screenshots e verificação da interface (erros de console, layout mobile) |
-| pytest | 9 testes que travam as regras críticas do score |
+| pytest | 11 testes que travam as regras críticas do score |
+| ffmpeg | GIF de demonstração a partir da gravação do Playwright |
 
 ### Workflow
 
@@ -106,6 +124,8 @@ que qualquer deal que já fechou na empresa**. O forecast está inflado, e a pri
 6. Scorer em Python + backtest usando a mesma função; correção de censura na curva.
 7. Interface HTML/JS, testada com Playwright em desktop e mobile.
 8. Testes, documentação e este log.
+9. Segunda iteração, pensando em quem avalia e em quem usa: aba "Funcionou?" (prova deal a deal), fluxo de limpeza com export para o CRM,
+   saúde do pipeline com forecast ingênuo vs forecast pela idade, e GIF de demonstração.
 
 ### Onde a IA errou e como corrigi
 
@@ -124,7 +144,7 @@ Escolhi o 003 porque é o desafio em que o entregável é software rodando, e ta
 
 ## Evidências
 
-- [x] Screenshots da ferramenta: [`process-log/screenshots/`](process-log/screenshots/)
+- [x] Screenshots e GIF da ferramenta: [`process-log/screenshots/`](process-log/screenshots/)
 - [x] Scripts de análise com as saídas: [`process-log/analysis/`](process-log/analysis/)
 - [x] Git history (commits por etapa nesta branch)
 - [x] Testes automatizados: [`solution/tests/`](solution/tests/)

@@ -32,6 +32,7 @@
     <button role="tab" data-tab="revisar">Revisar ou encerrar <span class="count" data-count="revisar"></span></button>
     <button role="tab" data-tab="prospectar">Prospectar <span class="count" data-count="prospectar"></span></button>
     <button role="tab" data-tab="time">Time</button>
+    <button role="tab" data-tab="prova">Funcionou?</button>
     <button role="tab" data-tab="metodo">Como o score funciona</button>
   </nav>
 
@@ -54,8 +55,16 @@
 
     <section id="panel-time" class="panel" hidden>
       <p class="hint">Visão do manager: onde está a receita do mês e onde está a sujeira do pipeline. Clique num vendedor para ver a lista dele.</p>
+      <div id="health"></div>
       <div class="callout warn" id="team-callout"></div>
       <div class="table-wrap"><table class="team" id="team-table"></table></div>
+    </section>
+
+    <section id="panel-prova" class="panel" hidden>
+      <p class="hint">Volte a uma segunda-feira passada: o que a ferramenta teria colocado no top 10 de cada vendedor, calculado só com o que se sabia naquele dia, e o que de fato aconteceu depois.</p>
+      <div class="chips" id="tt-dates"></div>
+      <div id="tt-summary"></div>
+      <div class="list" id="tt-list"></div>
     </section>
 
     <section id="panel-metodo" class="panel prose" hidden></section>
